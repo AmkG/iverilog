@@ -171,10 +171,12 @@ item_cell_u* slab_t<SLAB_SIZE, CHUNK_COUNT>::get_magazine(void) {
 			      nheap = new item_cell_u[real_chunk_count];
 			      setup_magazines(nheap);
 			}
-			heap = nheap;
+			rv = nheap;
+			heap = rv->next.magazine;
 			pool += real_chunk_count;
 			allocating = 0;
 			to_wake = waiters; waiters = 0;
+			goto wake_up_then_return;
 		  } else {
 			++waiters;
 			{mt_release_lock R(L);
@@ -184,7 +186,9 @@ item_cell_u* slab_t<SLAB_SIZE, CHUNK_COUNT>::get_magazine(void) {
 	    }
 	    rv = heap;
 	    heap = rv->next.magazine;
+	    return rv;
       }
+wake_up_then_return:
       while(to_wake) { waiter_sema.post(); --to_wake; }
       return rv;
 }
