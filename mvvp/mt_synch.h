@@ -165,6 +165,12 @@ private:
 public:
       explicit mt_counter(unsigned int i = 0) : C(i) { }
 
+      unsigned int set(unsigned int i) {
+	    mt_lock L(M);
+	    C = i;
+	    return C;
+      }
+
       unsigned int increment(void) {
 	    mt_lock L(M);
 	    ++C;
@@ -177,6 +183,27 @@ public:
       }
 };
 
-/*TODO: mt_tls*/
+class mt_tls {
+private:
+      pthread_key_t K;
+
+public:
+      explicit mt_tls(void(*f)(void*) = 0) {
+	    int pthread_key_create_result = pthread_key_create(&K, f);
+	    assert(pthread_key_create_result == 0);
+      }
+      ~mt_tls() {
+	    int pthread_key_delete_result = pthread_key_delete(K);
+	    assert(pthread_key_create_result == 0);
+      }
+      void* get(void) const {
+	    return pthread_getspecific(K);
+      }
+      void* set(void* p) {
+	    int pthread_setspecific_result = pthread_setspecific(K, p)
+	    assert(pthread_setspecific_result == 0);
+	    return p;
+      }
+};
 
 #endif /* __mt_synch_H */

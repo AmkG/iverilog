@@ -120,7 +120,7 @@ public:
 };
 
 template<size_t SLAB_SIZE, size_t CHUNK_COUNT>
-slab_t<SLAB_SIZE, CHUNK_COUNT>::slab_t(void) : tla(0, &tla_free) {
+slab_t<SLAB_SIZE, CHUNK_COUNT>::slab_t(void) : tlp(&tla_free) {
       pool = real_chunk_count;
       heap = initial_heap;
       setup_magazines(heap);
