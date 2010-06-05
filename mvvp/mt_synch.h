@@ -200,7 +200,7 @@ public:
 	    return pthread_getspecific(K);
       }
       void* set(void* p) {
-	    int pthread_setspecific_result = pthread_setspecific(K, p)
+	    int pthread_setspecific_result = pthread_setspecific(K, p);
 	    assert(pthread_setspecific_result == 0);
 	    return p;
       }
