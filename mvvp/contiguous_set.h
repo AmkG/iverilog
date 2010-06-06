@@ -20,6 +20,8 @@
  *    Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA
  */
 
+#include<assert.h>
+
 /*
 A contiguous set is a set where we expect most entries to
 be (1) contiguous to one another in terms of a ++ operator,
@@ -88,7 +90,7 @@ private:
 			pN = &N->L;
 		  } else if(t < N->end) {
 			bool contiguous_set_should_not_insert_when_found = 0;
-			assert(contigious_set_should_not_insert_when_found);
+			assert(contiguous_set_should_not_insert_when_found);
 		  } else if(t == N->end) {
 			++N->end; return;
 		  } else {

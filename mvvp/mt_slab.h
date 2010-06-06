@@ -35,6 +35,8 @@ objects.
 */
 
 #include"mt_support.h"
+#include"mt_synch.h"
+#include<stdlib.h>
 
 #define MT_MAGAZINE_SIZE 16
 
@@ -108,7 +110,7 @@ private:
       void setup_magazines(item_cell_u*);
 
       /*used by thread-local allocators to get space from global heap*/
-      item_cell_u* get_magazine(void);
+      void get_magazine(item_cell_u*&);
       /*used by thread-local allocators to return space to global heap*/
       void return_magazine(item_cell_u*);
 
@@ -131,28 +133,28 @@ void slab_t<SLAB_SIZE, CHUNK_COUNT>::setup_magazines(item_cell_u* arr) {
       size_t i;
       for(i = 0; i < raw_magazine_count - 1; ++i) {
 	    for(size_t j = 0; j < MT_MAGAZINE_SIZE - 1; ++j) {
-		  arr[i * MT_MAGAZINE_SIZE + j]->next.object =
+		  arr[i * MT_MAGAZINE_SIZE + j].next.object =
 			&arr[i * MT_MAGAZINE_SIZE + j + 1]
 		  ;
 	    }
-	    arr[i * MT_MAGAZINE_SIZE]->next.magazine =
+	    arr[i * MT_MAGAZINE_SIZE].next.magazine =
 		  &arr[(i + 1) * MT_MAGAZINE_SIZE]
 	    ;
       }
       /*fill in the last magazine*/
       for(size_t j = 0; j < MT_MAGAZINE_SIZE - 1; ++j) {
-	    arr[i * MT_MAGAZINE_SIZE + j]->next.object =
+	    arr[i * MT_MAGAZINE_SIZE + j].next.object =
 		  &arr[i * MT_MAGAZINE_SIZE + j + 1]
 	    ;
       }
-      arr[i * MT_MAGAZINE_SIZE]->next.magazine = 0;
+      arr[i * MT_MAGAZINE_SIZE].next.magazine = 0;
 }
 
 template<size_t SLAB_SIZE, size_t CHUNK_COUNT>
-item_cell_u* slab_t<SLAB_SIZE, CHUNK_COUNT>::get_magazine(void) {
+void slab_t<SLAB_SIZE, CHUNK_COUNT>::get_magazine(item_cell_u*& retvar) {
       item_cell_u* rv;
       size_t to_wake = 0;
-      {mt_lock L(slab_M);
+      {mt_lock<mt_spin_mutex> L(slab_M);
 	    /*slab_M is a spinlock, which is good for the typical case
 	    when the global slab allocator can provide a magazine.  But
 	    when insufficient memory is available, we need to ask memory
@@ -167,7 +169,7 @@ item_cell_u* slab_t<SLAB_SIZE, CHUNK_COUNT>::get_magazine(void) {
 		  if(!allocating) {
 			allocating = 1;
 			item_cell_u* nheap;
-			{mt_release_lock R(L);
+			{mt_release_lock<mt_spin_mutex> R(L);
 			      nheap = new item_cell_u[real_chunk_count];
 			      setup_magazines(nheap);
 			}
@@ -179,23 +181,25 @@ item_cell_u* slab_t<SLAB_SIZE, CHUNK_COUNT>::get_magazine(void) {
 			goto wake_up_then_return;
 		  } else {
 			++waiters;
-			{mt_release_lock R(L);
+			{mt_release_lock<mt_spin_mutex> R(L);
 			      waiter_sema.wait();
 			}
 		  }
 	    }
 	    rv = heap;
 	    heap = rv->next.magazine;
-	    return rv;
+	    retvar = rv;
+	    return;
       }
 wake_up_then_return:
       while(to_wake) { waiter_sema.post(); --to_wake; }
-      return rv;
+      retvar = rv;
+      return;
 }
 
 template<size_t SLAB_SIZE, size_t CHUNK_COUNT>
 void slab_t<SLAB_SIZE, CHUNK_COUNT>::return_magazine(item_cell_u* rv) {
-      mt_lock L(slab_M);
+      mt_lock<mt_spin_mutex> L(slab_M);
       rv->next.magazine = heap;
       heap = rv;
 }
@@ -204,7 +208,7 @@ void slab_t<SLAB_SIZE, CHUNK_COUNT>::return_magazine(item_cell_u* rv) {
 template<size_t SLAB_SIZE, size_t CHUNK_COUNT>
 void* slab_t<SLAB_SIZE, CHUNK_COUNT>::tla::alloc_slab(slab_t<SLAB_SIZE, CHUNK_COUNT>* parent) {
       if(capacity == 0) {
-	    first = parent->get_magazine();
+	    parent->get_magazine(first);
 	    capacity = MT_MAGAZINE_SIZE;
       }
       --capacity;

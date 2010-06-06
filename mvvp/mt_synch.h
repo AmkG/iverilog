@@ -115,7 +115,7 @@ private:
       mt_lock(void); /*disallowed!*/
 
 public:
-      mt_lock(T& nM) : M(nM) { M.lock(); }
+      explicit mt_lock(T& nM) : M(nM) { M.lock(); }
       ~mt_lock() { M.unlock(); }
 
       friend class mt_release_lock<T>;
@@ -128,7 +128,7 @@ private:
       mt_release_lock(void); /*disallowed!*/
 
 public:
-      mt_release_lock(mt_lock<T>& L) : M(L.M) { M.unlock(); }
+      explicit mt_release_lock(mt_lock<T>& L) : M(L.M) { M.unlock(); }
       ~mt_release_lock() { M.lock(); }
 };
 
@@ -166,18 +166,18 @@ public:
       explicit mt_counter(unsigned int i = 0) : C(i) { }
 
       unsigned int set(unsigned int i) {
-	    mt_lock L(M);
+	    mt_lock<mt_spin_mutex> L(M);
 	    C = i;
 	    return C;
       }
 
       unsigned int increment(void) {
-	    mt_lock L(M);
+	    mt_lock<mt_spin_mutex> L(M);
 	    ++C;
 	    return C;
       }
       unsigned int decrement(void) {
-	    mt_lock L(M);
+	    mt_lock<mt_spin_mutex> L(M);
 	    --C;
 	    return C;
       }
@@ -194,7 +194,7 @@ public:
       }
       ~mt_tls() {
 	    int pthread_key_delete_result = pthread_key_delete(K);
-	    assert(pthread_key_create_result == 0);
+	    assert(pthread_key_delete_result == 0);
       }
       void* get(void) const {
 	    return pthread_getspecific(K);
