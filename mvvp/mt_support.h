@@ -29,4 +29,57 @@ protected:
       noncopyable(void) { }
 };
 
+/*
+ * drop-in replacement for std::unique_ptr.  In the future
+ * when this gets common enough replace with
+ * #include<memory>
+ * using std::unique_ptr;
+ */
+template<class T>
+class unique_ptr : noncopyable {
+private:
+      T* p;
+
+public:
+      typedef T element_type;
+      typedef T* pointer;
+
+      unique_ptr(void) : p(0) { }
+      explicit unique_ptr(pointer np) : p(np) { }
+
+      ~unique_ptr() { delete p; }
+      void swap(unique_ptr& o) {
+	    pointer tmp = p;
+	    p = o.p
+	    o.p = tmp;
+      }
+      pointer release(void) {
+	    pointer tmp = p;
+	    delete p; p = 0;
+	    return tmp;
+      }
+      void reset(pointer np = 0) {
+	    if(p == np) return;
+	    unique_ptr tmp(np);
+	    swap(tmp);
+      }
+      pointer get(void) const { return p; }
+      element_type& operator*(void) const { return *p; }
+      pointer operator->(void) const { return p; }
+
+      bool operator!(void) const { return !p; }
+
+      /*safe bool idiom*/
+private:
+      typedef void (unique_ptr::*bool_type)(void) const;
+      void safe_bool_idiom(void) const;
+public:
+      operator bool_type(void) const {
+	    if(p) {
+		  return &unique_ptr::safe_bool_idiom;
+	    } else return 0;
+      }
+
+};
+
 #endif
