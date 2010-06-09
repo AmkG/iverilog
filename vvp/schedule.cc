@@ -22,6 +22,7 @@
 # include  "vpi_priv.h"
 # include  "slab.h"
 # include  "compile.h"
+# include  "event_s.h"
 # include  <new>
 # include  <typeinfo>
 # include  <csignal>
@@ -35,31 +36,6 @@ unsigned long count_gen_events = 0;
 unsigned long count_thread_events = 0;
   // Count the time events (A time cell created)
 unsigned long count_time_events = 0;
-
-
-
-/*
- * The event_s and event_time_s structures implement the Verilog
- * stratified event queue.
- *
- * The event_time_s objects are one per time step. Each time step in
- * turn contains a list of event_s objects that are the actual events.
- *
- * The event_s objects are base classes for the more specific sort of
- * event.
- */
-struct event_s {
-      struct event_s*next;
-      virtual ~event_s() { }
-      virtual void run_run(void) =0;
-
-	// Write something about the event to stderr
-      virtual void single_step_display(void);
-
-	// Fallback new/delete
-      static void*operator new (size_t size) { return ::new char[size]; }
-      static void operator delete(void*ptr)  { ::delete[]( (char*)ptr ); }
-};
 
 void event_s::single_step_display(void)
 {
