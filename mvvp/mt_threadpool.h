@@ -35,7 +35,7 @@ namespace mt_threadpool {
 		  mt_sema S;
 		  size_t waiters;
 	    public:
-		  thread_waiters(void) : waiters(0) { }
+		  thread_waiters_s(void) : waiters(0) { }
 		  void inc_waiters(void) { ++waiters; } /*synchronized*/
 		  void wait(void) { S.wait(); }
 		  void post(void) {

@@ -50,7 +50,7 @@ public:
       ~unique_ptr() { delete p; }
       void swap(unique_ptr& o) {
 	    pointer tmp = p;
-	    p = o.p
+	    p = o.p;
 	    o.p = tmp;
       }
       pointer release(void) {
