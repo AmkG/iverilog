@@ -33,6 +33,7 @@ namespace mt_threadpool {
 	    class thread_waiters_s {
 	    private:
 		  mt_sema S;
+		  mt_sema owner_S;
 		  size_t waiters;
 	    public:
 		  thread_waiters_s(void) : waiters(0) { }
@@ -40,7 +41,9 @@ namespace mt_threadpool {
 		  void wait(void) { S.wait(); }
 		  void post(void) {
 			for(size_t i = waiters; i > 0; --i) { S.post(); }
+			owner_S.post();
 		  }
+		  void owner_wait(void) { owner_S.wait(); }
 	    };
 
 	    /*synchronized*/
