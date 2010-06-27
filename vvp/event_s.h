@@ -61,7 +61,30 @@ public:
 #     endif /*MULTITHREADED*/
 };
 
-struct event_time_s; /*fully declared in schedule.cc*/
+struct event_time_s {
+      event_time_s() {
+	    count_time_events += 1;
+	    start = 0;
+	    active = 0;
+	    nbassign = 0;
+	    rwsync = 0;
+	    rosync = 0;
+	    del_thr = 0;
+      }
+      vvp_time64_t delay;
+
+      struct event_s*start;
+      struct event_s*active;
+      struct event_s*nbassign;
+      struct event_s*rwsync;
+      struct event_s*rosync;
+      struct event_s*del_thr;
+
+      struct event_time_s*next;
+
+      static void* operator new (size_t);
+      static void operator delete(void*obj, size_t s);
+};
 
 /*
  * The parallel_event_s structure allows an event to be placed in
