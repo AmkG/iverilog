@@ -29,6 +29,8 @@
       mt_release_lock
 	    - RAII unlocking class accepting an mt_lock.
 	    - unlocks at creation and re-locks at destruction
+      mt_condvar
+	    - condition variable
       mt_sema
 	    - semaphore
       mt_counter
@@ -52,6 +54,8 @@ Can use:
 
 #include"mt_support.h"
 
+class mt_condvar;
+
 class mt_mutex : noncopyable {
 private:
       pthread_mutex_t M;
@@ -73,6 +77,8 @@ public:
 	    int pthread_mutex_unlock_result = pthread_mutex_unlock(&M);
 	    assert(pthread_mutex_unlock_result == 0);
       }
+
+      friend class mt_condvar;
 };
 
 class mt_lock : noncopyable {
@@ -86,6 +92,7 @@ public:
       ~mt_lock() { M.unlock(); }
 
       friend class mt_release_lock;
+      friend class mt_condvar;
 };
 class mt_release_lock : noncopyable {
 private:
@@ -98,27 +105,52 @@ public:
       ~mt_release_lock() { M.lock(); }
 };
 
-class mt_sema : noncopyable {
+class mt_condvar : noncopyable {
 private:
-      sem_t S;
+      pthread_cond_t CV;
 
 public:
-      explicit mt_sema(unsigned int i = 0) {
-	    int sem_init_result = sem_init(&S, 0, i);
-	    assert(sem_init_result == 0);
+      mt_condvar(void) {
+	    int pthread_cond_init_result = pthread_cond_init(&CV, 0);
+	    assert(pthread_cond_init_result == 0);
       }
+      void signal(void) {
+	    int pthread_cond_signal_result = pthread_cond_signal(&CV);
+	    assert(pthread_cond_signal_result == 0);
+      }
+      void wait(mt_lock& L) {
+	    int pthread_cond_wait_result = pthread_cond_wait(&CV, &L.M.M);
+	    assert(pthread_cond_wait_result == 0);
+      }
+};
+
+class mt_sema : noncopyable {
+private:
+      mt_mutex M;
+      mt_condvar CV;
+      unsigned int S;
+      unsigned int waiters;
+
+public:
+      explicit mt_sema(unsigned int i = 0) : S(i), waiters(0) { }
       ~mt_sema() {
-	    int sem_destroy_result = sem_destroy(&S);
-	    assert(sem_destroy_result == 0);
       }
 
       void post(void) {
-	    int sem_post_result = sem_post(&S);
-	    assert(sem_post_result == 0);
+	    mt_lock L(M);
+	    ++S;
+	    if(waiters) CV.signal();
       }
       void wait(void) {
-	    int sem_wait_result = sem_wait(&S);
-	    assert(sem_wait_result == 0);
+	    mt_lock L(M);
+	    if(S == 0) {
+		  ++waiters;
+		  do {
+			CV.wait(L);
+		  } while(S == 0);
+		  --waiters;
+	    }
+	    --S;
       }
 };
 
