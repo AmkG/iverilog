@@ -31,7 +31,7 @@ void mt_threadpool::task::task_core_execute(void) {
       do {
 	    to_wait_on = self->task_wait_on();
 	    if(to_wait_on) {
-		  mt_lock<mt_spin_mutex> L2(to_wait_on->M);
+		  mt_lock L2(to_wait_on->M);
 		  if(to_wait_on->finished) {
 			continue;
 		  } else {
@@ -42,10 +42,10 @@ void mt_threadpool::task::task_core_execute(void) {
 	    } else {
 		  rv = self->task_execute();
 
-		  {mt_release_lock<mt_mutex> R(L);
+		  {mt_release_lock R(L);
 			task* remaining;
 			thread_waiters_s* waiters;
-			{mt_lock<mt_spin_mutex> L2(self->M);
+			{mt_lock L2(self->M);
 			      self->return_value = rv;
 			      remaining = self->todo_list;
 			      self->todo_list = 0;
@@ -67,7 +67,7 @@ void mt_threadpool::task::task_core_execute(void) {
 }
 
 void* mt_threadpool::task::task_wait_completion(bool reset_flag) {
-      mt_lock<mt_spin_mutex> L(M);
+      mt_lock L(M);
       if(!finished) {
 	    if(thread_waiters) {
 		  thread_waiters->inc_waiters();

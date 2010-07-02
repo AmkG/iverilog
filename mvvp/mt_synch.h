@@ -23,9 +23,6 @@
 /*defined classes:
       mt_mutex
 	    - mutex type
-      mt_spin_mutex
-	    - spinlock-based mutex
-	    - (should be) optimized when possible
       mt_lock
 	    - RAII locking class accepting anything with lock() and unlock()
 	      member functions.
@@ -42,7 +39,7 @@
 	    - (should be) optimized when possible
 */
 
-/*TODO: optimized versions of mt_spin_mutex and mt_counter
+/*TODO: optimized versions of mt_counter
 Can use:
       inline assembly
       GCC atomic builtins
@@ -77,58 +74,27 @@ public:
 	    assert(pthread_mutex_unlock_result == 0);
       }
 };
-/*NOTE!  Sufficiently old implementations of pthreads may not provide
-spinlocks.  In such cases if we can't implement architecture-specific
-efficient spinlocks we might #define mt_spin_mutex mt_mutex.
-In addition, a spinlock using inline assembly or GCC atomic builtins
-is more likely to be better optimized.
-*/
-class mt_spin_mutex : noncopyable {
-private:
-      pthread_spinlock_t M;
-public:
-      mt_spin_mutex(void) { 
-	    int pthread_spin_init_result = pthread_spin_init(&M, PTHREAD_PROCESS_PRIVATE);
-	    assert(pthread_spin_init_result == 0);
-      }
-      ~mt_spin_mutex(void) {
-	    int pthread_spin_destroy_result = pthread_spin_destroy(&M);
-	    assert(pthread_spin_destroy_result == 0);
-      }
 
-      void lock(void) {
-	    int pthread_spin_lock_result = pthread_spin_lock(&M);
-	    assert(pthread_spin_lock_result == 0);
-      }
-      void unlock(void) {
-	    int pthread_spin_unlock_result = pthread_spin_unlock(&M);
-	    assert(pthread_spin_unlock_result == 0);
-      }
-};
-
-template<class T> class mt_release_lock;
-template<class T>
 class mt_lock : noncopyable {
 private:
-      T& M;
+      mt_mutex& M;
 
       mt_lock(void); /*disallowed!*/
 
 public:
-      explicit mt_lock(T& nM) : M(nM) { M.lock(); }
+      explicit mt_lock(mt_mutex& nM) : M(nM) { M.lock(); }
       ~mt_lock() { M.unlock(); }
 
-      friend class mt_release_lock<T>;
+      friend class mt_release_lock;
 };
-template<class T>
 class mt_release_lock : noncopyable {
 private:
-      T& M;
+      mt_mutex& M;
 
       mt_release_lock(void); /*disallowed!*/
 
 public:
-      explicit mt_release_lock(mt_lock<T>& L) : M(L.M) { M.unlock(); }
+      explicit mt_release_lock(mt_lock& L) : M(L.M) { M.unlock(); }
       ~mt_release_lock() { M.lock(); }
 };
 
@@ -159,25 +125,25 @@ public:
 /*TODO! this really really wants to be architecture-specific optimized*/
 class mt_counter {
 private:
-      mt_spin_mutex M;
+      mt_mutex M;
       unsigned int C;
 
 public:
       explicit mt_counter(unsigned int i = 0) : C(i) { }
 
       unsigned int set(unsigned int i) {
-	    mt_lock<mt_spin_mutex> L(M);
+	    mt_lock L(M);
 	    C = i;
 	    return C;
       }
 
       unsigned int increment(void) {
-	    mt_lock<mt_spin_mutex> L(M);
+	    mt_lock L(M);
 	    ++C;
 	    return C;
       }
       unsigned int decrement(void) {
-	    mt_lock<mt_spin_mutex> L(M);
+	    mt_lock L(M);
 	    --C;
 	    return C;
       }

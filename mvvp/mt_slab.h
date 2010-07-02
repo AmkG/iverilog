@@ -67,14 +67,7 @@ private:
       static const size_t real_chunk_count = MT_MAGAZINE_SIZE * raw_magazine_count;
 
       /*synchronized*/
-      mt_spin_mutex slab_M;
-      /*if heap is empty, is some other thread already allocating?*/
-      bool allocating;
-      /*if we found an empty heap while another thread is allocating, we are a waiter
-      on the semaphore below
-      */
-      size_t waiters;
-      mt_sema waiter_sema;
+      mt_mutex slab_M;
 
       /*the actual heap*/
       item_cell_u* heap;
@@ -154,52 +147,27 @@ template<size_t SLAB_SIZE, size_t CHUNK_COUNT>
 void slab_t<SLAB_SIZE, CHUNK_COUNT>::get_magazine(item_cell_u*& retvar) {
       item_cell_u* rv;
       size_t to_wake = 0;
-      {mt_lock<mt_spin_mutex> L(slab_M);
-	    /*slab_M is a spinlock, which is good for the typical case
-	    when the global slab allocator can provide a magazine.  But
-	    when insufficient memory is available, we need to ask memory
-	    from the system allocator, and worse, we need to initialize
-	    that memory.  This can take time.  This is not good for
-	    spinlocks.  In such a case we emulate "full" mutex locks
-	    using a flag and a semaphore, keeping the actual spinlock
-	    free during allocation and waiting for allocation to
-	    complete.
-	    */
+      {mt_lock L(slab_M);
 	    if(!heap) {
-		  if(!allocating) {
-			allocating = 1;
-			item_cell_u* nheap;
-			{mt_release_lock<mt_spin_mutex> R(L);
-			      nheap = new item_cell_u[real_chunk_count];
-			      setup_magazines(nheap);
-			}
-			rv = nheap;
-			heap = rv->next.magazine;
-			pool += real_chunk_count;
-			allocating = 0;
-			to_wake = waiters; waiters = 0;
-			goto wake_up_then_return;
-		  } else {
-			++waiters;
-			{mt_release_lock<mt_spin_mutex> R(L);
-			      waiter_sema.wait();
-			}
-		  }
+		  item_cell_u* nheap;
+		  nheap = new item_cell_u[real_chunk_count];
+		  setup_magazines(nheap);
+		  rv = nheap;
+		  heap = rv->next.magazine;
+		  pool += real_chunk_count;
+		  retvar = rv;
+		  return;
 	    }
 	    rv = heap;
 	    heap = rv->next.magazine;
 	    retvar = rv;
 	    return;
       }
-wake_up_then_return:
-      while(to_wake) { waiter_sema.post(); --to_wake; }
-      retvar = rv;
-      return;
 }
 
 template<size_t SLAB_SIZE, size_t CHUNK_COUNT>
 void slab_t<SLAB_SIZE, CHUNK_COUNT>::return_magazine(item_cell_u* rv) {
-      mt_lock<mt_spin_mutex> L(slab_M);
+      mt_lock L(slab_M);
       rv->next.magazine = heap;
       heap = rv;
 }

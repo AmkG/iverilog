@@ -47,7 +47,7 @@ namespace mt_threadpool {
 	    };
 
 	    /*synchronized*/
-	    mt_spin_mutex M;
+	    mt_mutex M;
 	    bool finished;
 	    void* return_value;
 	    task* todo_list;
