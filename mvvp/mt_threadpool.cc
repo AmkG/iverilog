@@ -25,7 +25,7 @@ void mt_threadpool::task::task_core_execute(void) {
       void* rv;
 
       mt_mutex dummyM; /*dummy mutex to force memory fences*/
-      mt_lock<mt_mutex> L(dummyM);
+      mt_lock L(dummyM);
 
       task* self = this;
       do {
@@ -55,9 +55,9 @@ void mt_threadpool::task::task_core_execute(void) {
 			}
 			if(waiters) { waiters->post(); }
 			if(!remaining) return;
-			while(remaining->next) {
+			while(remaining->todo_list_next) {
 			      task* to_enqueue = remaining;
-			      remaining = remaining->next;
+			      remaining = remaining->todo_list_next;
 			      to_enqueue->task_enqueue();
 			}
 			self = remaining;
@@ -71,19 +71,20 @@ void* mt_threadpool::task::task_wait_completion(bool reset_flag) {
       if(!finished) {
 	    if(thread_waiters) {
 		  thread_waiters->inc_waiters();
+		  thread_waiters_s* waiter = thread_waiters;
 		  {mt_release_lock R(L);
-			my_waiter.wait();
+			waiter->wait();
 		  }
 	    } else {
 		  thread_waiters_s my_waiter;
-		  thred_waiters = &my_waiter;
+		  thread_waiters = &my_waiter;
 		  {mt_release_lock R(L);
 			my_waiter.owner_wait();
 		  }
 	    }
       }
+      void* rv = return_value;
       if(reset_flag) {
-	    void* rv = return_value;
 	    finished = 0; return_value = 0;
 	    return rv;
       } else {
