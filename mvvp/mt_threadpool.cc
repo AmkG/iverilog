@@ -20,7 +20,81 @@
 
 #include"mt_threadpool.h"
 
-void mt_threadpool::task::task_core_execute(void) {
+/*In the future, use thread-local stores with a small deque
+(i.e. work-stealing)
+*/
+class mt_threadpool::per_thread {
+public:
+};
+
+class mt_threadpool::core {
+private:
+      /*synchronized*/
+      mt_mutex M;
+      mt_condvar CV;
+      size_t waiters;
+      size_t top;
+      size_t capacity;
+      task** arr;
+      /*endsynchronized*/
+public:
+      core(void);
+      ~core();
+
+      void enqueue(task* t);
+      task* dequeue(void);
+};
+
+static mt_threadpool::core global_queue;
+
+static void per_thread_execution(void* _ignored_) {
+      per_thread pt;
+      for(;;) {
+	    /*TODO: use per-thread work stealing*/
+	    task* t = global_queue.dequeue();
+	    t->task_core_execute(pt);
+      }
+}
+
+mt_threadpool::core::core(void)
+      : waiters(0), top(0), capacity(0), arr(0) { }
+mt_threadpool::core::~core() {
+      delete [] arr;
+}
+
+void mt_threadpool::core::enqueue(task* t) {
+      mt_lock L(M);
+      if(top == capacity) {
+	    size_t ncapacity = (capacity + 4);
+	    ncapacity += ncapacity / 2;
+	    task** narr = new task*[ncapacity];
+	    for(size_t i = 0; i < top; ++i) {
+		  narr[i] = arr[i];
+	    }
+	    delete [] arr;
+	    arr = narr;
+	    capacity = ncapacity;
+      }
+      arr[top] = t;
+      ++top;
+      if(waiters != 0) {
+	    CV.signal();
+      }
+}
+task* mt_threadpool::core::dequeue(void) {
+      mt_lock L(M);
+      if(top == 0) {
+	    ++waiters;
+	    do {
+		  CV.wait(L);
+	    } while(top == 0);
+	    --waiters;
+      }
+      --top;
+      return arr[top];
+}
+
+void mt_threadpool::task::task_core_execute(per_thread& pt) {
       task* to_wait_on;
       void* rv;
 
@@ -58,6 +132,9 @@ void mt_threadpool::task::task_core_execute(void) {
 			while(remaining->todo_list_next) {
 			      task* to_enqueue = remaining;
 			      remaining = remaining->todo_list_next;
+			      /*TODO: insert into per_thread structure
+			      rather than global pool
+			      */
 			      to_enqueue->task_enqueue();
 			}
 			self = remaining;

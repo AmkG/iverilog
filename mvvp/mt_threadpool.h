@@ -55,7 +55,7 @@ namespace mt_threadpool {
 	    thread_waiters_s* thread_waiters;
 	    /*end synchronized*/
 
-	    void task_core_execute(void);
+	    void task_core_execute(per_thread&);
 
       protected:
 	    task(void);
