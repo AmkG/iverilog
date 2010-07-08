@@ -43,17 +43,23 @@ public:
 
       void enqueue(task* t);
       task* dequeue(void);
+
+      void core_thread_code(void);
 };
 
 static mt_threadpool::core global_queue;
 
-static void per_thread_execution(void* _ignored_) {
+void mt_threadpool::core::core_thread_code(void) {
       per_thread pt;
       for(;;) {
 	    /*TODO: use per-thread work stealing*/
-	    task* t = global_queue.dequeue();
+	    task* t = dequeue();
 	    t->task_core_execute(pt);
       }
+}
+
+static void per_thread_code(void* _ignored_) {
+      global_queue.core_thread_code();
 }
 
 mt_threadpool::core::core(void)
@@ -81,7 +87,8 @@ void mt_threadpool::core::enqueue(task* t) {
 	    CV.signal();
       }
 }
-task* mt_threadpool::core::dequeue(void) {
+
+mt_threadpool::task* mt_threadpool::core::dequeue(void) {
       mt_lock L(M);
       if(top == 0) {
 	    ++waiters;
@@ -167,5 +174,23 @@ void* mt_threadpool::task::task_wait_completion(bool reset_flag) {
       } else {
 	    return rv;
       }
+}
+
+mt_threadpool::task::task(void)
+      : finished(0)
+      , return_value(0)
+      , todo_list(0)
+      , todo_list_next(0)
+      , thread_waiters(0) { }
+
+mt_threadpool::task::task(task const&)
+      : finished(0)
+      , return_value(0)
+      , todo_list(0)
+      , todo_list_next(0)
+      , thread_waiters(0) { }
+
+mt_threadpool::task* mt_threadpool::task::task_wait_on(void) {
+      return 0;
 }
 
