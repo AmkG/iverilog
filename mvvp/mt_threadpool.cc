@@ -101,6 +101,10 @@ mt_threadpool::task* mt_threadpool::core::dequeue(void) {
       return arr[top];
 }
 
+/*
+ * mt_threadpool::task member functions
+ */
+
 void mt_threadpool::task::task_core_execute(per_thread& pt) {
       task* to_wait_on;
       void* rv;
@@ -150,6 +154,15 @@ void mt_threadpool::task::task_core_execute(per_thread& pt) {
       } while(self);
 }
 
+void mt_threadpool::task::task_enqueue(void) {
+      global_queue.enqueue(this);
+}
+
+bool mt_threadpool::task::task_completed(void) {
+      mt_lock L(M);
+      return finished;
+}
+
 void* mt_threadpool::task::task_wait_completion(bool reset_flag) {
       mt_lock L(M);
       if(!finished) {
@@ -190,7 +203,17 @@ mt_threadpool::task::task(task const&)
       , todo_list_next(0)
       , thread_waiters(0) { }
 
+/*
+ * mt_threadpool::task default implementations
+ */
+
 mt_threadpool::task* mt_threadpool::task::task_wait_on(void) {
       return 0;
 }
+
+void mt_threadpool::task::task_cleanup(void*) {
+      return;
+}
+
+
 
